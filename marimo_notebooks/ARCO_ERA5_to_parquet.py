@@ -13,7 +13,7 @@ def _():
     import polars as pl
     import polars_h3 as plh3
     import numpy as np
-    return datetime, mo, np, pl, plh3, plt, xr
+    return datetime, mo, pl, plh3, plt, xr
 
 
 @app.cell
@@ -52,38 +52,24 @@ def _(xr):
 
 @app.cell
 def _(datetime, ds, plt):
-    UK_LATITUDE = slice(61, 50)
-    UK_LONGITUDE_EAST = 2
-    UK_LONGITUDE_WEST = -10.5
+    GB_LATITUDE = slice(59.5, 49.5)
+    GB_LONGITUDE_EAST = 2
+    GB_LONGITUDE_WEST = -8
     # ARCO-ERA5 represents longitude as degrees east of Greenwich.
     # So the westerly point of the UK is actually 360 degrees - 12 degrees.
     # So the ugly line below appends the longitudes in the range [360 - 12, 360) with [0, 4].
-    UK_LONGITUDE = list(
-        filter(lambda longitude: longitude > 360 + UK_LONGITUDE_WEST, ds.longitude.values)
-    ) + list(filter(lambda longitude: longitude < UK_LONGITUDE_EAST, ds.longitude.values))
+    GB_LONGITUDE = list(
+        filter(lambda longitude: longitude > 360 + GB_LONGITUDE_WEST, ds.longitude.values)
+    ) + list(filter(lambda longitude: longitude < GB_LONGITUDE_EAST, ds.longitude.values))
 
     xr_land_sea_mask = ds["land_sea_mask"].sel(
-        latitude=UK_LATITUDE,
-        longitude=UK_LONGITUDE,
+        latitude=GB_LATITUDE,
+        longitude=GB_LONGITUDE,
         time=datetime(2025, 4, 1, 12, 0),
     )
 
     plt.imshow(xr_land_sea_mask.values)
-    return UK_LATITUDE, UK_LONGITUDE, xr_land_sea_mask
-
-
-@app.cell
-def _(np, pl, xr):
-    def xarray_data_array_to_polars_data_frame(da: xr.DataArray) -> pl.DataFrame:
-        shape = da.shape
-        return pl.DataFrame(
-            {
-                da.name: da.values.flatten(),
-                "longitude": np.tile(da.longitude.values, shape[0]),
-                "latitude": np.repeat(da.latitude.values, shape[1]),
-            }
-        )
-    return
+    return (xr_land_sea_mask,)
 
 
 @app.cell
