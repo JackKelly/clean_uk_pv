@@ -1,0 +1,142 @@
+"""
+We use a simple discrete spatial index that works like this:
+
+- Each NWP pixel is given a unique UInt16 identifier, in row-major order.
+- Create a GeoJSON file which provides the geospatial bounding box of each ERA5 pixel, and maps between the integer ID and the bounding box. The lat lon coords in ARCO-ERA5 refer to the centre of each grid box. Given that ERA5 is 0.25 x 0.25 degrees (from Gemini):
+
+    Consider an ERA5 grid point with a reported latitude of 50.0° N and a longitude of 0.5° E. The bounding box for this cell would be:
+
+    Minimum Latitude: 50.0 - 0.125 = 49.875° N
+    Maximum Latitude: 50.0 + 0.125 = 50.125° N
+    Minimum Longitude: 0.5 - 0.125 = 0.375° E
+    Maximum Longitude: 0.5 + 0.125 = 0.625° E
+
+- Use [Polars-ST](https://oreilles.github.io/polars-st/api-reference/) to map from the lat lon of each PV system to the spatial index.
+- Plot with a [Choropleth map in Vega-Altair](https://altair-viz.github.io/gallery/choropleth.html).
+    - For example, I could plot a count of the PV systems within each ERA5 grid cell.
+- Finding neighbours is trivial, because we've used a simple row-major numbering system. So we just do some simple integer maths.
+
+
+## Paths not taken
+I originally wanted to use H3 as my spatial index but it appears that no H3 resolution is a particularly good fit for ERA5. To use H3, I'd either have to throw information away by using a too-low H3 resolution; or I'd have to [interpolate](https://pysal.org/tobler/notebooks/census_to_hexgrid.html) ERA5 to create a dense higher resolution H3 grid. Neither solution is very attractive.
+"""
+
+
+class BoundingBox:
+    def __init__(self, north: float, south: float, east: float, west: float):
+        """
+        Initialize the bounding box.
+
+        The bounding box is defined by the range [min_lat, max_lat), [min_lon, max_lon).
+
+        Parameters
+        ----------
+        north: The northernmost latitude of the bounding box.
+        south: The southernmost latitude of the bounding box.
+        east: The easternmost longitude of the bounding box.
+        west: The westernmost longitude of the bounding box.
+        """
+        self.north = north
+        self.south = south
+        self.east = east
+        self.west = west
+
+        self.min_lat = min(north, south)
+        self.max_lat = max(north, south)
+        self.min_lon = min(east, west)
+        self.max_lon = max(east, west)
+        self.width_degrees = self.max_lon - self.min_lon
+        self.height_degrees = self.max_lat - self.min_lat
+
+        # Sanity checks:
+        for attr in ["width_degrees", "height_degrees"]:
+            if getattr(self, attr) <= 0:
+                raise ValueError(
+                    f"{attr} of bounding box cannot be zero or negative: {getattr(self, attr)}"
+                )
+
+
+class GBBoundingBox(BoundingBox):
+    """
+    A bounding box for Great Britain.
+    """
+
+    def __init__(self):
+        """
+        Initialize the bounding box for Great Britain.
+
+        Note that the coordinates in ERA5 specify the *central* point of each grid cell,
+        yet our BoundingBox defines the *edges* of the bounding box. Hence when the edges are offset
+        by 0.125 degrees.
+        """
+        super().__init__(north=59.625, south=49.625, east=2.125, west=-8.125)
+
+
+class SpatialIndex:
+    """
+    A discrete spatial index, in row-major order, starting from the top left
+    (north west) corner.
+    """
+
+    def __init__(
+        self,
+        bounding_box: BoundingBox,
+        resolution_degrees: float = 0.25,
+    ):
+        """
+        Initialize the SpatialIndex.
+
+        Parameters
+        ----------
+        bounding_box: The bounding box of the spatial index.
+        resolution_degrees: The resolution of the grid in degrees.
+            For example, for ERA5, the resolution is 0.25 degrees.
+            The resolution must exactly divide `bounding_box.width_degrees` and
+            `bounding_box.height_degrees`.
+        """
+        self.bounding_box = bounding_box
+        self.resolution_degrees = resolution_degrees
+
+        # Sanity checks:
+        for attr in ["width_degrees", "height_degrees"]:
+            if getattr(bounding_box, attr) % resolution_degrees != 0:
+                raise ValueError(
+                    f"{attr} of bounding box is not a multiple of resolution {resolution_degrees}"
+                )
+
+        # Calculate the number of rows and columns in the grid:
+        self.n_rows = int(bounding_box.height_degrees / resolution_degrees)
+        self.n_cols = int(bounding_box.width_degrees / resolution_degrees)
+
+    def lat_lon_to_index(self, lat: float, lon: float) -> int:
+        """
+        Convert latitude and longitude to a grid index. Note that this function floors the
+        lat/lon to the nearest north-westerly grid box, which is what we need for associating lat/lons with
+        NWP grid boxes.
+
+        Parameters
+        ----------
+        lat: The latitude of the point.
+        lon: The longitude of the point.
+
+        Returns
+        -------
+        The grid index of the point.
+        """
+        if not (self.bounding_box.min_lat <= lat < self.bounding_box.max_lat):
+            raise ValueError(f"Latitude {lat} is outside bounding box {self.bounding_box}")
+        if not (self.bounding_box.min_lon <= lon < self.bounding_box.max_lon):
+            raise ValueError(f"Longitude {lon} is outside bounding box {self.bounding_box}")
+        # Calculate the row and column indices:
+        row = int((self.bounding_box.max_lat - lat) / self.resolution_degrees)
+        col = int((lon - self.bounding_box.min_lon) / self.resolution_degrees)
+
+        print(f"Row: {row}, Col: {col}")
+        # Calculate the grid index:
+        return row * self.n_cols + col
+
+    def __len__(self) -> int:
+        """
+        Return the number of grid cells in the spatial index.
+        """
+        return self.n_rows * self.n_cols
