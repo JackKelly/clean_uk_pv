@@ -12,8 +12,8 @@ def _():
     import xarray as xr
     import marimo as mo
     import pytest
-    import clean_uk_pv
-    return datetime, mo, np, pl, pytest, xr
+    from clean_uk_pv import geospatial
+    return datetime, geospatial, mo, pl, xr
 
 
 @app.cell
@@ -51,127 +51,77 @@ def _(xr):
 
 
 @app.cell
-def _(ds):
-    GB_LATITUDE = slice(59.5, 49.5)
-    GB_LONGITUDE_EAST = 2
-    GB_LONGITUDE_WEST = -8
+def _(datetime, ds, geospatial):
+    gb_bounding_box = geospatial.GBBoundingBox()
 
-    # ARCO-ERA5 represents longitude as degrees east of Greenwich.
-    # So, in ERA5, the westerly point of GB is encoded as 360 degrees - 8 degrees.
-    # So the ugly line below appends the longitudes a little below 360 with those a little above 0.
-    GB_LONGITUDE = list(
-        filter(lambda longitude: longitude > 360 + GB_LONGITUDE_WEST, ds.longitude.values)
-    ) + list(filter(lambda longitude: longitude < GB_LONGITUDE_EAST, ds.longitude.values))
-    return GB_LATITUDE, GB_LONGITUDE, GB_LONGITUDE_EAST, GB_LONGITUDE_WEST
-
-
-@app.cell
-def _(GB_LATITUDE, GB_LONGITUDE_EAST, GB_LONGITUDE_WEST, np):
-    def lat_lon_to_discrete_index(lat: float, lon: float) -> np.uint16:
-        # Sanity-check `lat`:
-        min_lat = min(GB_LATITUDE.start, GB_LATITUDE.stop)
-        max_lat = max(GB_LATITUDE.start, GB_LATITUDE.stop)
-        if not min_lat <= lat <= max_lat:
-            raise ValueError(f"`lat` must be between {min_lat} and {max_lat}, not {lat}.")
-
-        # Sanity-check `lon`:
-        min_lon = min(GB_LONGITUDE_EAST, GB_LONGITUDE_WEST)
-        max_lon = max(GB_LONGITUDE_EAST, GB_LONGITUDE_WEST)
-        if not min_lon <= lon <= max_lon:
-            raise ValueError(f"`lon` must be between {min_lon} and {max_lon}, not {lon}.")
-
-    return (lat_lon_to_discrete_index,)
-
-
-@app.cell
-def collection_of_tests_for_lat_lon_to_discrete_index(
-    lat_lon_to_discrete_index,
-    pytest,
-):
-    @pytest.mark.parametrize(("lat", "lon"), [(1000, 0), (0, 1000)])
-    def test_lat_lon_to_discrete_index_out_of_bounds(lat, lon):
-        with pytest.raises(ValueError):
-            lat_lon_to_discrete_index(lat, lon)
-
-    return
-
-
-@app.cell
-def _(GB_LATITUDE, GB_LONGITUDE, datetime, ds):
     xr_ds = (
         ds["2m_temperature"]
         .sel(
-            latitude=GB_LATITUDE,
-            longitude=GB_LONGITUDE,
+            latitude=gb_bounding_box.north_south_slice(),
+            longitude=gb_bounding_box.filter_longitudes_360(ds.longitude.values),
             time=slice(datetime(2025, 3, 1, 0, 0), datetime(2025, 3, 2, 0, 0)),
         )
         .load()
     )
 
     xr_ds
-    return (xr_ds,)
+    return gb_bounding_box, xr_ds
 
 
 @app.cell
-def _(pl, xr_ds):
-    pl.from_pandas(xr_ds.to_dataframe().reset_index()).unique(["latitude", "longitude"])
+def _(datetime, xr_ds):
+    import matplotlib.pyplot as plt
+
+    plt.imshow(xr_ds.sel(time=datetime(2025, 3, 1, 0, 0)).values)
     return
 
 
 @app.cell
-def _(pl, plh3, xr_ds):
-    df = (
-        pl.from_pandas(xr_ds.to_dataframe().reset_index())
+def _(datetime, pl, xr_ds):
+    """Get a Polars DataFrame of a single time slice, so we can create a Polars DF of the spatial index"""
+
+    spatial_index_df = (
+        pl.from_pandas(xr_ds.sel(time=datetime(2025, 3, 1, 0, 0)).to_dataframe().reset_index())
+        .select(["latitude", "longitude"])
+        # Convert longitude from ERA5's [0, 360) range, to [-180, +180]:
         .with_columns(
-            h3=plh3.latlng_to_cell("latitude", "longitude", resolution=6, return_dtype=pl.UInt64)
+            longitude=pl.when(pl.col.longitude > 180)
+            .then(pl.col.longitude - 360)
+            .otherwise(pl.col.longitude)
         )
-        .drop(["longitude", "latitude"])
-        .sort(by=["time", "h3"])
+        # Sort to achieve row-major order, starting from the top left (north west).
+        .sort(["latitude", "longitude"], descending=[True, False])
+        .with_row_index("spatial_index")
+        .cast({"spatial_index": pl.UInt16})
     )
 
-    df.unique("h3")
-    return (df,)
+    spatial_index_df
+    return (spatial_index_df,)
 
 
 @app.cell
-def _(df, plh3):
-    df.with_columns(h3_res_5=plh3.cell_to_parent("h3", 5))
+def _(gb_bounding_box, geospatial, pl, spatial_index_df):
+    """Sanity check our spatial indexes:"""
+
+    from polars import testing as pl_testing
+
+    _spatial_index = geospatial.SpatialIndex(gb_bounding_box)
+    assert len(spatial_index_df) == len(_spatial_index)
+    _computed_spatial_index = (
+        spatial_index_df.select(["latitude", "longitude"])
+        .map_rows(lambda _row: _spatial_index.lat_lon_to_index(lat=_row[0], lon=_row[1]))
+        .to_series()
+        .rename("spatial_index")
+        .cast(pl.UInt16)
+    )
+
+    pl_testing.assert_series_equal(_computed_spatial_index, spatial_index_df["spatial_index"])
     return
 
 
 @app.cell
-def _(datetime, df, pl, plh3):
-    plh3.graphing.plot_hex_fills(
-        df.with_columns(h3_res_4=plh3.cell_to_parent("h3", 4)).filter(
-            pl.col.time == datetime(2025, 3, 1, 0, 0)
-        ),
-        "h3_res_4",
-        "2m_temperature",
-    )
-    return
-
-
-@app.cell
-def _(df, pl, pv_locations):
-    df_filtered = df.filter(pl.col.h3.is_in(pv_locations))
-
-    df_filtered
-    return (df_filtered,)
-
-
-@app.cell
-def _(df_filtered):
-    df_filtered["h3"].unique()
-    return
-
-
-@app.cell
-def _(datetime, df_filtered, pl, plh3):
-    plh3.graphing.plot_hex_fills(
-        df_filtered.filter(pl.col.time == datetime(2025, 3, 1, 0, 0)),
-        "h3",
-        "2m_temperature",
-    )
+def _():
+    """Get spatial indexes for PV systems."""
     return
 
 

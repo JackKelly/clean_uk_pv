@@ -84,6 +84,9 @@ class BoundingBox:
         """
         return self.north, self.south, self.east, self.west
 
+    def north_south_slice(self) -> slice:
+        return slice(self.north, self.south)
+
     def filter_longitudes_360(self, longitudes: Iterable[float]) -> Iterable[float]:
         """
         Filter a list of longitudes encoded as [0, 360) degrees east of Greenwich.
@@ -184,7 +187,6 @@ class SpatialIndex:
         row = int((north - lat) / self.resolution_degrees)
         col = int((lon - west) / self.resolution_degrees)
 
-        print(f"Row: {row}, Col: {col}")
         # Calculate the grid index:
         return row * self.n_cols + col
 

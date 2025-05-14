@@ -9,6 +9,7 @@ dependencies = [
     "fsspec>=2025.3.2",
     "gcsfs>=2025.3.2",
     "marimo>=0.13.7",
+    "matplotlib>=3.10.3",
     "polars>=1.29.0",
     "pyarrow>=20.0.0",
     "pytest>=8.3.5",
