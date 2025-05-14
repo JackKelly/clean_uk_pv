@@ -1,19 +1,18 @@
 import marimo
 
-__generated_with = "0.13.7"
+__generated_with = "0.13.8"
 app = marimo.App(width="full")
 
 
 @app.cell
 def _():
-    import marimo as mo
-    import xarray as xr
-    from datetime import datetime
-    import matplotlib.pyplot as plt
-    import polars as pl
-    import polars_h3 as plh3
     import numpy as np
-    return datetime, mo, pl, plh3, xr
+    import polars as pl
+    from datetime import datetime
+    import xarray as xr
+    import marimo as mo
+    import pytest
+    return datetime, mo, np, pl, pytest, xr
 
 
 @app.cell
@@ -43,37 +42,6 @@ def _(mo):
     """
     )
     return
-
-
-@app.cell
-def _():
-    """See here for info on H3 resolutions: https://h3geo.org/docs/core-library/restable/"""
-
-    H3_RESOLUTION = 6
-    return (H3_RESOLUTION,)
-
-
-@app.cell
-def _(H3_RESOLUTION, pl, plh3):
-    """Open uk_pv metadata, so we can select NWP points that correspond to PV systems."""
-
-    pv_locations = (
-        pl.read_csv("~/data/uk_pv/metadata.csv")
-        .with_columns(
-            h3=plh3.latlng_to_cell(
-                "latitude_rounded",
-                "longitude_rounded",
-                resolution=H3_RESOLUTION,
-                return_dtype=pl.UInt64,
-            )
-        )["h3"]
-        .unique()
-        .sort()
-        .implode()
-    )
-
-    pv_locations[0]
-    return (pv_locations,)
 
 
 @app.cell
@@ -115,13 +83,43 @@ def _(ds):
     GB_LATITUDE = slice(59.5, 49.5)
     GB_LONGITUDE_EAST = 2
     GB_LONGITUDE_WEST = -8
+
     # ARCO-ERA5 represents longitude as degrees east of Greenwich.
-    # So the westerly point of the UK is actually 360 degrees - 12 degrees.
-    # So the ugly line below appends the longitudes in the range [360 - 12, 360) with [0, 4].
+    # So, in ERA5, the westerly point of GB is encoded as 360 degrees - 8 degrees.
+    # So the ugly line below appends the longitudes a little below 360 with those a little above 0.
     GB_LONGITUDE = list(
         filter(lambda longitude: longitude > 360 + GB_LONGITUDE_WEST, ds.longitude.values)
     ) + list(filter(lambda longitude: longitude < GB_LONGITUDE_EAST, ds.longitude.values))
-    return GB_LATITUDE, GB_LONGITUDE
+    return GB_LATITUDE, GB_LONGITUDE, GB_LONGITUDE_EAST, GB_LONGITUDE_WEST
+
+
+@app.cell
+def _(GB_LATITUDE, GB_LONGITUDE_EAST, GB_LONGITUDE_WEST, np):
+    def lat_lon_to_discrete_index(lat: float, lon: float) -> np.uint16:
+        # Sanity-check `lat`:
+        min_lat = min(GB_LATITUDE.start, GB_LATITUDE.stop)
+        max_lat = max(GB_LATITUDE.start, GB_LATITUDE.stop)
+        if not min_lat <= lat <= max_lat:
+            raise ValueError(f"`lat` must be between {min_lat} and {max_lat}, not {lat}.")
+
+        # Sanity-check `lon`:
+        min_lon = min(GB_LONGITUDE_EAST, GB_LONGITUDE_WEST)
+        max_lon = max(GB_LONGITUDE_EAST, GB_LONGITUDE_WEST)
+        if not min_lon <= lon <= max_lon:
+            raise ValueError(f"`lon` must be between {min_lon} and {max_lon}, not {lon}.")
+    return (lat_lon_to_discrete_index,)
+
+
+@app.cell
+def collection_of_tests_for_lat_lon_to_discrete_index(
+    lat_lon_to_discrete_index,
+    pytest,
+):
+    @pytest.mark.parametrize(("lat", "lon"), [(1000, 0), (0, 1000)])
+    def test_lat_lon_to_discrete_index_out_of_bounds(lat, lon):
+        with pytest.raises(ValueError):
+            lat_lon_to_discrete_index(lat, lon)
+    return
 
 
 @app.cell
@@ -196,7 +194,9 @@ def _(df_filtered):
 @app.cell
 def _(datetime, df_filtered, pl, plh3):
     plh3.graphing.plot_hex_fills(
-        df_filtered.filter(pl.col.time == datetime(2025, 3, 1, 0, 0)), "h3", "2m_temperature"
+        df_filtered.filter(pl.col.time == datetime(2025, 3, 1, 0, 0)),
+        "h3",
+        "2m_temperature",
     )
     return
 
