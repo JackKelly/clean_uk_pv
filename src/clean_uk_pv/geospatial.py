@@ -17,9 +17,11 @@ We use a simple discrete spatial index that works like this:
 - Finding neighbours is trivial, because we've used a simple row-major numbering system. So we just do some simple integer maths.
 
 
-## Paths not taken
+## Design paths not taken
 I originally wanted to use H3 as my spatial index but it appears that no H3 resolution is a particularly good fit for ERA5. To use H3, I'd either have to throw information away by using a too-low H3 resolution; or I'd have to [interpolate](https://pysal.org/tobler/notebooks/census_to_hexgrid.html) ERA5 to create a dense higher resolution H3 grid. Neither solution is very attractive.
 """
+
+from collections.abc import Iterable
 
 
 class BoundingBox:
@@ -27,7 +29,13 @@ class BoundingBox:
         """
         Initialize the bounding box.
 
-        The bounding box is defined by the range [min_lat, max_lat), [min_lon, max_lon).
+        The bounding box is defined by the range [south, north), [west, east).
+
+        Please provide longitudes in the range [-180, 180] degrees, where 0 represents the Prime Meridian
+        (passing through Greenwich), positive longitudes are east of Greenwich, and
+        negative longitudes are west of Greenwich.
+
+        We do not yet support bounding boxes which cross the anti-Meridian (the line of longitude at 180 degrees).
 
         Parameters
         ----------
@@ -36,24 +44,68 @@ class BoundingBox:
         east: The easternmost longitude of the bounding box.
         west: The westernmost longitude of the bounding box.
         """
+        # Lots of sanity checks:
+        for name, value in (("west", west), ("east", east)):
+            if not (-180 <= value <= 180):
+                raise ValueError(
+                    f"{name} of bounding box must be in the range [-180, 180) degrees, not {value}"
+                )
+
+        for name, value in (("north", north), ("south", south)):
+            if not (-90 <= value <= 90):
+                raise ValueError(
+                    f"{name} of bounding box must be in the range [-90, 90] degrees, not {value}"
+                )
+
+        if west >= east:
+            raise ValueError(
+                f"west of bounding box must be less than east, but west = {west}, and east = {
+                    east
+                }. We do not yet support bounding boxes which span the anti-Meridian."
+            )
+        if north <= south:
+            raise ValueError(
+                f"north of bounding box must be greater than south, but north = {
+                    north
+                }, and south = {south}"
+            )
+
         self.north = north
         self.south = south
         self.east = east
         self.west = west
 
-        self.min_lat = min(north, south)
-        self.max_lat = max(north, south)
-        self.min_lon = min(east, west)
-        self.max_lon = max(east, west)
-        self.width_degrees = self.max_lon - self.min_lon
-        self.height_degrees = self.max_lat - self.min_lat
+        self.width_degrees = east - west
+        self.height_degrees = north - south
 
-        # Sanity checks:
-        for attr in ["width_degrees", "height_degrees"]:
-            if getattr(self, attr) <= 0:
-                raise ValueError(
-                    f"{attr} of bounding box cannot be zero or negative: {getattr(self, attr)}"
-                )
+    def north_south_east_west(self) -> tuple[float, float, float, float]:
+        """
+        Return the bounding box as a tuple of (north, south, east, west).
+        """
+        return self.north, self.south, self.east, self.west
+
+    def filter_longitudes_360(self, longitudes: Iterable[float]) -> Iterable[float]:
+        """
+        Filter a list of longitudes encoded as [0, 360) degrees east of Greenwich.
+        """
+        west_360 = self.west + 360 if self.west < 0 else self.west
+        east_360 = self.east + 360 if self.east < 0 else self.east
+        if not ((0 <= max(longitudes) < 360) and (0 <= min(longitudes) < 360)):
+            raise ValueError("`longitudes` must be in the range [0, 360) degrees")
+        if self.west < 0 and self.east > 0:
+            # This is the case where the bounding box crosses the Prime Meridian.
+            # To keep the longitudes in an west-to-east order, we have to select the
+            # values west of the Prime Meridian separately:
+            filtered_lons = list(filter(lambda longitude: longitude >= west_360, longitudes))
+            filtered_lons += list(filter(lambda longitude: longitude < east_360, longitudes))
+        else:
+            # This is the case where the bounding box does not cross the Prime Meridian.
+            # In this case, we can just filter the longitudes normally:
+            filtered_lons = list(
+                filter(lambda longitude: west_360 <= longitude < east_360, longitudes)
+            )
+
+        return filtered_lons
 
 
 class GBBoundingBox(BoundingBox):
@@ -123,13 +175,14 @@ class SpatialIndex:
         -------
         The grid index of the point.
         """
-        if not (self.bounding_box.min_lat <= lat < self.bounding_box.max_lat):
+        north, south, east, west = self.bounding_box.north_south_east_west()
+        if not (south <= lat < north):
             raise ValueError(f"Latitude {lat} is outside bounding box {self.bounding_box}")
-        if not (self.bounding_box.min_lon <= lon < self.bounding_box.max_lon):
+        if not (west <= lon < east):
             raise ValueError(f"Longitude {lon} is outside bounding box {self.bounding_box}")
         # Calculate the row and column indices:
-        row = int((self.bounding_box.max_lat - lat) / self.resolution_degrees)
-        col = int((lon - self.bounding_box.min_lon) / self.resolution_degrees)
+        row = int((north - lat) / self.resolution_degrees)
+        col = int((lon - west) / self.resolution_degrees)
 
         print(f"Row: {row}, Col: {col}")
         # Calculate the grid index:
