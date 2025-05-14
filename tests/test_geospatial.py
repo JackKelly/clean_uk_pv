@@ -39,12 +39,7 @@ def test_lat_lon_to_index(
     assert index == true_index
 
 
-def test_lat_lon_to_index_raises(spatial_index: geospatial.SpatialIndex):
+@pytest.mark.parametrize(("lat", "lon"), [(60.0, -8.0), (59.5, -9.0), (49.5, 2.125), (49.5, 3.0)])
+def test_lat_lon_to_index_raises(spatial_index: geospatial.SpatialIndex, lat: float, lon: float):
     with pytest.raises(ValueError):
-        spatial_index.lat_lon_to_index(60.0, -8.0)
-    with pytest.raises(ValueError):
-        spatial_index.lat_lon_to_index(59.5, -9.0)
-    with pytest.raises(ValueError):
-        spatial_index.lat_lon_to_index(49.5, 2.125)
-    with pytest.raises(ValueError):
-        spatial_index.lat_lon_to_index(49.5, 3.0)
+        spatial_index.lat_lon_to_index(lat, lon)
