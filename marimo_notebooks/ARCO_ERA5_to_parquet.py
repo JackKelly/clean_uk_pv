@@ -223,18 +223,35 @@ def _(load_month_of_era5_and_save_parquet, pathlib, pl, pv_systems):
 
     months = pl.date_range(start_date, end_date, interval="1mo", eager=True)
 
-    with futures.ThreadPoolExecutor(max_workers=4) as e:
-        results = e.map(
-            functools.partial(
-                load_month_of_era5_and_save_parquet,
-                variable_name="surface_solar_radiation_downwards",
-                output_path_root=pathlib.Path("~/data/ERA5/").expanduser(),
-            ),
-            months,
-        )
+    VARIABLES_SELECTED = [
+        # "10m_u_component_of_wind",
+        # "10m_v_component_of_wind",
+        # "2m_temperature",
+        # "clear_sky_direct_solar_radiation_at_surface",
+        # "mean_surface_direct_short_wave_radiation_flux",
+        "surface_thermal_radiation_downwards",
+        "total_cloud_cover",
+    ]
 
-        # Surface any errors raised during concurrent execution:
-        list(results)
+    for variable_name in VARIABLES_SELECTED:
+        print(variable_name)
+        with futures.ThreadPoolExecutor(max_workers=4) as e:
+            results = e.map(
+                functools.partial(
+                    load_month_of_era5_and_save_parquet,
+                    variable_name=variable_name,
+                    output_path_root=pathlib.Path("~/data/ERA5/").expanduser(),
+                ),
+                months,
+            )
+
+            # Surface any errors raised during concurrent execution:
+            list(results)
+    return
+
+
+@app.cell
+def _():
     return
 
 
