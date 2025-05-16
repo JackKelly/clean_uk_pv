@@ -5,16 +5,18 @@ This script only downloads the ERA5 grid cells which cover solar PV systems in
 the uk_pv dataset.
 """
 
-import xarray as xr
-from clean_uk_pv import geospatial
-import polars as pl
-from datetime import date, datetime, timedelta
-import pathlib
-from concurrent import futures
 import functools
-import click
+import itertools
+import pathlib
 from collections.abc import Iterable
+from concurrent import futures
+from datetime import date, datetime, timedelta
 
+import click
+import polars as pl
+import xarray as xr
+
+from clean_uk_pv import geospatial
 
 ALL_RELEVANT_ERA5_VARIABLES = [
     "10m_u_component_of_wind",
@@ -91,13 +93,17 @@ def create_spatial_index_from_arco_era5_dataset(ds: xr.Dataset) -> pl.DataFrame:
     """Create discrete spatial index from ARCO-ERA5, so we can join this
     spatial index to the rest of the ARCO-ERA5 data we download.
 
+    The longitudes in the input xr.Dataset should be in the range [0, 360).
+    The input Dataset should already be subsetted to include only the
+    geographical region of interest.
+
     Returns a pl.DataFrame with columns: latitude, longitude, and spatial_index.
+    The longitudes in the returned DataFrame are all in the range [-180, 180].
     """
-    # Select an arbitrary ERA5 variable and datetime: We're just interested in the lat and lon.
-    df = pl.from_pandas(
-        ds["2m_temperature"].sel(time=datetime(2025, 3, 1, 0, 0)).to_dataframe().reset_index()
+    lat_and_lon = list(itertools.product(ds.latitude.values, ds.longitude.values))
+    df = pl.DataFrame(
+        lat_and_lon, orient="row", schema=[("latitude", pl.Float32), ("longitude", pl.Float32)]
     )
-    df = df.select(["latitude", "longitude"])
     check_longitude_values_are_in_the_range_0_to_360(df)
     df = convert_longitude_from_360_to_plus_minus_180(df)
     # Sort to achieve row-major order, starting from the top left (north west).
@@ -184,7 +190,7 @@ def load_month_of_era5_and_save_parquet(
     - spatial_index_with_lat_lon: pl.DataFrame
         A DataFrame with columns spatial_index, latitude and longitude. This should already
         be filtered to only include values for the PV systems in the UK PV dataset,
-        if that is the desired behaviour.
+        if that is the desired behaviour. The longitude must be in the range [-180, 180].
     - overwrite: bool
         If True, overwrite the output file if it already exists. If False, skip
         downloading if the output file already exists.
@@ -215,7 +221,7 @@ def load_month_of_era5_and_save_parquet(
     del ds_filtered
     df = convert_longitude_from_360_to_plus_minus_180(df)
     df = (
-        df.join(spatial_index_with_lat_lon, on=["latitude", "longitude"], how="semi")
+        df.join(spatial_index_with_lat_lon, on=["latitude", "longitude"], how="inner")
         .drop(["latitude", "longitude"])
         .sort(["spatial_index", "time"])
     )
