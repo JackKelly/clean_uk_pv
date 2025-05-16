@@ -200,6 +200,8 @@ def load_month_of_era5_and_save_parquet(
     if full_output_filename.exists() and not overwrite:
         print(f"Output file {full_output_filename} already exists. Skipping download.")
         return
+    else:
+        print(f"Downloading month of data starting on {start_date} for {variable_name}...")
 
     # Load ERA5 from Zarr on Google Cloud:
     assert start_date.day == 1, "start_date must be the first day of the month"
@@ -213,13 +215,12 @@ def load_month_of_era5_and_save_parquet(
     del ds_filtered
     df = convert_longitude_from_360_to_plus_minus_180(df)
     df = (
-        df.join(
-            spatial_index_with_lat_lon, on=["latitude", "longitude"], how="semi", validate="m:1"
-        )
+        df.join(spatial_index_with_lat_lon, on=["latitude", "longitude"], how="semi")
         .drop(["latitude", "longitude"])
         .sort(["spatial_index", "time"])
     )
 
+    print(f"Writing {full_output_filename}...")
     full_output_path.mkdir(exist_ok=True, parents=True)
     df.write_parquet(full_output_filename, statistics="full")
 
@@ -235,9 +236,7 @@ def get_spatial_index_with_lat_lon_filtered_by_uk_pv_systems(
     ds: xr.Dataset, metadata_filename: str
 ) -> pl.DataFrame:
     """Get the spatial index with latitude and longitude, filtered by the UK PV systems."""
-    print("create_spatial_index_from_arco_era5_dataset(ds)...")
     spatial_index_with_lat_lon = create_spatial_index_from_arco_era5_dataset(ds)
-    print("load_spatial_index_for_uk_pv_systems...")
     spatial_index_for_uk_pv_systems = load_spatial_index_for_uk_pv_systems(metadata_filename)
     return spatial_index_with_lat_lon.filter(
         pl.col.spatial_index.is_in(spatial_index_for_uk_pv_systems)
@@ -250,7 +249,7 @@ def _process_list(_ctx: click.Context, _param: click.Parameter, value) -> list[s
     return [item.strip() for item in value.split(",")]
 
 
-@click.command()
+@click.command(help=__doc__)
 @click.option(
     "--start_date",
     type=click.DateTime(),
@@ -306,7 +305,6 @@ def main(
     print("Opening ARCO-ERA5...")
     ds = open_arco_era5()
     ds = select_great_britain(ds)
-    print("Getting spatial index, filtered by locations in UK PV dataset...")
     spatial_index_with_lat_lon = get_spatial_index_with_lat_lon_filtered_by_uk_pv_systems(
         ds, metadata_filename
     )
