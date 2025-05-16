@@ -16,10 +16,11 @@ dependencies = [
     "ruff>=0.11.9",
     "xarray>=2025.4.0",
     "zarr>=3.0.7",
+    "click>=8.2.0",
 ]
 
 [project.scripts]
-download_era5 = "clean_uk_pv.download_era5:download_era5"
+download_era5 = "clean_uk_pv.download_era5:main"
 
 [build-system]
 requires = ["hatchling"]

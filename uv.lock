@@ -110,6 +110,7 @@ name = "clean-uk-pv"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "click" },
     { name = "fsspec" },
     { name = "gcsfs" },
     { name = "polars" },
@@ -122,6 +123,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "click", specifier = ">=8.2.0" },
     { name = "fsspec", specifier = ">=2025.3.2" },
     { name = "gcsfs", specifier = ">=2025.3.2" },
     { name = "polars", specifier = ">=1.29.0" },
@@ -130,6 +132,18 @@ requires-dist = [
     { name = "ruff", specifier = ">=0.11.9" },
     { name = "xarray", specifier = ">=2025.4.0" },
     { name = "zarr", specifier = ">=3.0.7" },
+]
+
+[[package]]
+name = "click"
+version = "8.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "colorama", marker = "sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/cd/0f/62ca20172d4f87d93cf89665fbaedcd560ac48b465bd1d92bfc7ea6b0a41/click-8.2.0.tar.gz", hash = "sha256:f5452aeddd9988eefa20f90f05ab66f17fce1ee2a36907fd30b05bbb5953814d", size = 235857, upload-time = "2025-05-10T22:21:03.111Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a2/58/1f37bf81e3c689cc74ffa42102fa8915b59085f54a6e4a80bc6265c0f6bf/click-8.2.0-py3-none-any.whl", hash = "sha256:6b303f0b2aa85f1cb4e5303078fadcbcd4e476f114fab9b5007005711839325c", size = 102156, upload-time = "2025-05-10T22:21:01.352Z" },
 ]
 
 [[package]]
