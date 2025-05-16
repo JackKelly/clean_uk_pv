@@ -9,7 +9,17 @@ authors = [
 requires-python = ">=3.13"
 dependencies = [
     "pytest>=8.3.5",
+    "fsspec>=2025.3.2",
+    "gcsfs>=2025.3.2",
+    "polars>=1.29.0",
+    "pyarrow>=20.0.0",
+    "ruff>=0.11.9",
+    "xarray>=2025.4.0",
+    "zarr>=3.0.7",
 ]
+
+[project.scripts]
+download_era5 = "clean_uk_pv.download_era5:download_era5"
 
 [build-system]
 requires = ["hatchling"]

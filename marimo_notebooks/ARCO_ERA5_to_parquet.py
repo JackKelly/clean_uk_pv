@@ -13,6 +13,7 @@ def _():
     import marimo as mo
     import pytest
     from clean_uk_pv import geospatial
+
     return date, datetime, geospatial, pl, timedelta, xr
 
 
@@ -159,13 +160,17 @@ def _(
 ):
     import pathlib
 
-
     def load_month_of_era5_and_save_parquet(
-        start_date: date, variable_name: str, output_path_root: pathlib.Path, overwrite: bool = False
+        start_date: date,
+        variable_name: str,
+        output_path_root: pathlib.Path,
+        overwrite: bool = False,
     ):
         # Check if output file already exists:
         full_output_path = (
-            output_path_root / variable_name / f"year={start_date.year}/month={start_date.month:02d}"
+            output_path_root
+            / variable_name
+            / f"year={start_date.year}/month={start_date.month:02d}"
         )
         if (full_output_path / "data.parquet").exists() and not overwrite:
             return
@@ -201,7 +206,6 @@ def _(
 
         full_output_path.mkdir(exist_ok=True, parents=True)
         df.write_parquet(full_output_path / "data.parquet", statistics="full")
-
 
     # load_month_of_era5_and_save_parquet(
     #    datetime(2025, 3, 1, 0, 0),
