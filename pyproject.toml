@@ -27,5 +27,15 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.ruff]
+# Note that the max-line-length is also configured for pycodestyle in the setup.cfg file.
+# (because pydocstyle doesn't yet read from pyproject.toml files)
+# And the line-length is configured in [tool.docformatter]
 line-length = 100
+format.docstring-code-format = true
 
+[tool.docformatter]
+black = true
+blank = true
+wrap-summaries = 100
+wrap-descriptions = 100
+style = "numpy"
