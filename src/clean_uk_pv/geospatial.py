@@ -43,12 +43,11 @@ class BoundingBox:
         We do not yet support bounding boxes which cross the anti-Meridian (the line of longitude at
         180 degrees).
 
-        Parameters
-        ----------
-        north: The northernmost latitude of the bounding box.
-        south: The southernmost latitude of the bounding box.
-        east: The easternmost longitude of the bounding box.
-        west: The westernmost longitude of the bounding box.
+        Args:
+          north: The northernmost latitude of the bounding box.
+          south: The southernmost latitude of the bounding box.
+          east: The easternmost longitude of the bounding box.
+          west: The westernmost longitude of the bounding box.
 
         """
         # Lots of sanity checks:
@@ -129,8 +128,7 @@ class GBBoundingBox(BoundingBox):
 
 
 class SpatialIndex:
-    """A discrete spatial index, in row-major order, starting from the top left (north west)
-    corner."""
+    """A discrete spatial index, in row-major order, starting from the top left (north west)."""
 
     def __init__(
         self,
@@ -139,13 +137,12 @@ class SpatialIndex:
     ):
         """Initialize the SpatialIndex.
 
-        Parameters
-        ----------
-        bounding_box: The bounding box of the spatial index.
-        resolution_degrees: The resolution of the grid in degrees.
-            For example, for ERA5, the resolution is 0.25 degrees.
-            The resolution must exactly divide `bounding_box.width_degrees` and
-            `bounding_box.height_degrees`.
+        Args:
+            bounding_box: The bounding box of the spatial index.
+            resolution_degrees: The resolution of the grid in degrees.
+                For example, for ERA5, the resolution is 0.25 degrees.
+                The resolution must exactly divide `bounding_box.width_degrees` and
+                `bounding_box.height_degrees`.
 
         """
         self.bounding_box = bounding_box
@@ -163,18 +160,17 @@ class SpatialIndex:
         self.n_cols = int(bounding_box.width_degrees / resolution_degrees)
 
     def lat_lon_to_index(self, lat: float, lon: float) -> int:
-        """Convert latitude and longitude to a grid index. Note that this function floors the
-        lat/lon to the nearest north-westerly grid box, which is what we need for associating
-        lat/lons with NWP grid boxes.
+        """Convert latitude and longitude to a grid index.
 
-        Parameters
-        ----------
-        lat: The latitude of the point.
-        lon: The longitude of the point.
+        Note that this function floors the lat/lon to the nearest north-westerly grid box, which is
+        what we need for associating lat/lons with NWP grid boxes.
 
-        Returns
-        -------
-        index: The spatial index.
+        Args:
+            lat: The latitude of the point.
+            lon: The longitude of the point.
+
+        Returns:
+            index: The spatial index.
 
         """
         north, south, east, west = self.bounding_box.north_south_east_west()

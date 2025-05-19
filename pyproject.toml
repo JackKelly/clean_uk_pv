@@ -31,11 +31,23 @@ build-backend = "hatchling.build"
 # (because pydocstyle doesn't yet read from pyproject.toml files)
 # And the line-length is configured in [tool.docformatter]
 line-length = 100
-format.docstring-code-format = true
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.ruff.lint]
+extend-select = ["D", "DOC"]  # D = pydocstyle, DOC = pydoclint
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+# [tool.pydocstyle]
+# convention = "google"
 
 [tool.docformatter]
 black = true
 blank = true
 wrap-summaries = 100
 wrap-descriptions = 100
-style = "numpy"
+style = "google"
+
