@@ -29,6 +29,8 @@ ERA5 to create a dense higher resolution H3 grid. Neither solution is very attra
 
 from collections.abc import Iterable
 
+import altair as alt
+
 
 class BoundingBox:
     """Represents a geographical bounding box."""
@@ -115,6 +117,28 @@ class BoundingBox:
 
         return filtered_lons
 
+    def plot(self, *args, **kwargs) -> alt.Chart:
+        """Plot the bounding box on a map.
+
+        Args:
+            *args: Arguments to pass to `alt.Chart.mark_rect`.
+            **kwargs: Keyword arguments to pass to `alt.Chart.mark_rect`.
+
+        Returns:
+            An Altair chart of the bounding box.
+
+        """
+        return (
+            alt.Chart()
+            .mark_rect(*args, **kwargs)
+            .encode(
+                longitude=alt.datum(self.west),
+                longitude2=alt.datum(self.east),
+                latitude=alt.datum(self.south),
+                latitude2=alt.datum(self.north),
+            )
+        )
+
 
 class GBBoundingBox(BoundingBox):
     """A bounding box for Great Britain."""
@@ -191,6 +215,38 @@ class SpatialIndex:
 
         # Calculate the grid index:
         return row * self.n_cols + col
+
+    def index_to_bounding_box(self, index: int) -> BoundingBox:
+        """Return the bounding box for a given spatial index.
+
+        Args:
+            index: The spatial index.
+
+        Returns:
+            :class:`BoundingBox`: The bounding box for the spatial index.
+
+        """
+        if not (0 <= index < len(self)):
+            raise ValueError(
+                f"Index {index} is out of range for spatial index of length {len(self)}"
+            )
+
+        # Calculate the row and column indices:
+        row = index // self.n_cols
+        col = index % self.n_cols
+
+        # Calculate the latitude and longitude of the north-west corner of the grid box:
+        north, _, _, west = self.bounding_box.north_south_east_west()
+        lat_north_west = north - row * self.resolution_degrees
+        lon_north_west = west + col * self.resolution_degrees
+
+        # Calculate the latitude and longitude of the south-east corner of the grid box:
+        lat_south_east = lat_north_west - self.resolution_degrees
+        lon_south_east = lon_north_west + self.resolution_degrees
+
+        return BoundingBox(
+            north=lat_north_west, south=lat_south_east, east=lon_south_east, west=lon_north_west
+        )
 
     def __len__(self) -> int:
         """Return the number of grid cells in the spatial index."""

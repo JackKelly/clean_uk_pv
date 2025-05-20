@@ -9,7 +9,8 @@ dependencies = [
     "clean-uk-pv",
     "marimo>=0.13.10",
     "matplotlib>=3.10.3",
+    "vega-datasets>=0.9.0",
 ]
 
 [tool.uv.sources]
-clean-uk-pv = { path = "../" }
+clean-uk-pv = { path = "../", editable = true }
