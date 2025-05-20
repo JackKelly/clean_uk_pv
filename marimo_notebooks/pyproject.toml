@@ -7,7 +7,7 @@ requires-python = ">=3.13"
 dependencies = [
     "altair>=5.5.0",
     "clean-uk-pv",
-    "marimo>=0.13.7",
+    "marimo>=0.13.10",
     "matplotlib>=3.10.3",
 ]
 
