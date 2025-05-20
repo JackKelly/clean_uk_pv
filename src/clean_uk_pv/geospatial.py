@@ -31,6 +31,8 @@ from collections.abc import Iterable
 
 
 class BoundingBox:
+    """Represents a geographical bounding box."""
+
     def __init__(self, north: float, south: float, east: float, west: float):
         """Initialize the bounding box.
 
@@ -89,6 +91,7 @@ class BoundingBox:
         return self.north, self.south, self.east, self.west
 
     def north_south_slice(self) -> slice:
+        """Return a slice object for the north-south dimension."""
         return slice(self.north, self.south)
 
     def filter_longitudes_360(self, longitudes: Iterable[float]) -> Iterable[float]:
@@ -138,11 +141,15 @@ class SpatialIndex:
         """Initialize the SpatialIndex.
 
         Args:
-            bounding_box: The bounding box of the spatial index.
+            bounding_box: :class:`BoundingBox` The bounding box to use.
             resolution_degrees: The resolution of the grid in degrees.
                 For example, for ERA5, the resolution is 0.25 degrees.
                 The resolution must exactly divide `bounding_box.width_degrees` and
                 `bounding_box.height_degrees`.
+
+        Raises:
+            ValueError if `resolution_degrees` is not a factor of is not a factor of either the
+            width or height of the bounding box.ther the width or height of the bounding box.
 
         """
         self.bounding_box = bounding_box
