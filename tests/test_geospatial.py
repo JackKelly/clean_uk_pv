@@ -1,13 +1,17 @@
-import pytest
+"""Unit tests for geospatial.py."""
+
 from collections.abc import Iterable
-from clean_uk_pv import geospatial
+from typing import Final
+
+import numpy as np  # type: ignore
+import pytest  # type: ignore
+
+from clean_uk_pv import geospatial  # type: ignore
 
 
 @pytest.fixture
 def spatial_index() -> geospatial.SpatialIndex:
-    """
-    Get a spatial index for Great Britain with a resolution of 0.25 degrees.
-    """
+    """Get a spatial index for Great Britain with a resolution of 0.25 degrees."""
     return geospatial.SpatialIndex(geospatial.GBBoundingBox(), 0.25)
 
 
@@ -21,9 +25,7 @@ def spatial_index() -> geospatial.SpatialIndex:
     ],
 )
 def test_bounding_box_raises(north: float, south: float, east: float, west: float):
-    """
-    Test that the BoundingBox raises a ValueError if the coordinates are not valid.
-    """
+    """Test that the BoundingBox raises a ValueError if the coordinates are not valid."""
     with pytest.raises(ValueError):
         geospatial.BoundingBox(north=north, south=south, east=east, west=west)
 
@@ -71,3 +73,17 @@ def test_filter_longitudes_360(east: float, west: float, true_filtered: Iterable
     bounding_box = geospatial.BoundingBox(north=60, south=50, east=east, west=west)
     filtered = bounding_box.filter_longitudes_360(lons_to_filter)
     assert filtered == list(true_filtered)
+
+
+def test_round_trip_from_lat_lon_to_index_and_back(spatial_index: geospatial.SpatialIndex):
+    NUM_SAMPLES: Final[int] = 512
+    bbox = spatial_index.bounding_box
+    rng: np.random.Generator = np.random.default_rng(seed=42)
+    lats = rng.uniform(low=bbox.south, high=bbox.north, size=NUM_SAMPLES)
+    lons = rng.uniform(low=bbox.west, high=bbox.east, size=NUM_SAMPLES)
+
+    for lat, lon in zip(lats, lons):
+        index = spatial_index.lat_lon_to_index(lat, lon)
+        bbox_from_index = spatial_index.index_to_bounding_box(index)
+        assert bbox_from_index.west <= lon <= bbox_from_index.east
+        assert bbox_from_index.south <= lat <= bbox_from_index.north
