@@ -29,7 +29,7 @@ ERA5 to create a dense higher resolution H3 grid. Neither solution is very attra
 
 from collections.abc import Iterable
 
-import altair as alt
+import altair as alt  # type: ignore
 
 
 class BoundingBox:
