@@ -117,6 +117,26 @@ class BoundingBox:
 
         return filtered_lons
 
+    def geo_json_feature(self, properties: dict | None = None) -> dict:
+        """Get this BoundingBox represented as a single GeoJSON feature."""
+        properties = properties or {}
+        return {
+            "type": "Feature",
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [  # Order of coordinates: longitude, latitude
+                    [
+                        [self.west, self.north],  # NW corner
+                        [self.east, self.north],  # NE corner
+                        [self.east, self.south],  # SE corner
+                        [self.west, self.south],  # SW corner
+                        [self.west, self.north],  # NW corner (again, to finish the polygon)
+                    ]
+                ],
+            },
+            "properties": properties,
+        }
+
     def plot(self, *args, **kwargs) -> alt.Chart:
         """Plot the bounding box on a map.
 
@@ -251,3 +271,31 @@ class SpatialIndex:
     def __len__(self) -> int:
         """Return the number of grid cells in the spatial index."""
         return self.n_rows * self.n_cols
+
+    def geo_json(self, indicies: None | Iterable[int] = None) -> dict:
+        """Return GeoJSON of spatial index.
+
+        This can be used to visualise the grid.
+
+        Args:
+            indicies: The indicies of the spatial index to include in the GeoJSON.
+                If None, all indicies are included.
+
+        Returns:
+            dict: A GeoJSON FeatureCollection of the spatial index.
+
+        """
+        indicies = indicies or list(range(len(self)))
+        assert min(indicies) > 0, f"min(indicies) must be >= 0, not {min(indicies)}"
+        assert max(indicies) < len(self), (
+            f"max(indicies) must be < {len(self)}, not {max(indicies)}"
+        )
+        return {
+            "type": "FeatureCollection",
+            "features": [
+                self.index_to_bounding_box(index).geo_json_feature(
+                    properties={"spatial_index": index}
+                )
+                for index in indicies
+            ],
+        }
