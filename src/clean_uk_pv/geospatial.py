@@ -286,7 +286,7 @@ class SpatialIndex:
 
         """
         indicies = indicies or list(range(len(self)))
-        assert min(indicies) > 0, f"min(indicies) must be >= 0, not {min(indicies)}"
+        assert min(indicies) >= 0, f"min(indicies) must be >= 0, not {min(indicies)}"
         assert max(indicies) < len(self), (
             f"max(indicies) must be < {len(self)}, not {max(indicies)}"
         )
@@ -299,3 +299,24 @@ class SpatialIndex:
                 for index in indicies
             ],
         }
+
+
+def geo_json_to_altair_data(geo_json: dict) -> alt.Data:
+    """Convert a GeoJSON FeatureCollection to an Altair Data object.
+
+    This is a helper function to convert GeoJSON data into a format that can be used by Altair.
+
+    For example, this could be used to plot GeoJSON on a map like this:
+
+    >>> geo_json = spatial_index.geo_json()
+    >>> alt_data = geo_json_to_altair_data(geo_json)
+    >>> alt.Chart(alt_data).mark_geoshape()
+
+    Args:
+        geo_json: The GeoJSON FeatureCollection to convert.
+
+    Returns:
+        alt.Data: An Altair Data object.
+
+    """
+    return alt.Data(values=geo_json, format=alt.DataFormat(property="features"))
